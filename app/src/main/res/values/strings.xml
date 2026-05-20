@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Bajeti</string>
+    <string name="widget_description">Shows your monthly balance and lets you import new SMS transactions directly from your home screen.</string>
+</resources>

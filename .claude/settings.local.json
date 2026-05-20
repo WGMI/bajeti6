@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:clerk.com)",
+      "WebFetch(domain:mvnrepository.com)",
+      "WebFetch(domain:github.com)",
+      "Bash(gh api *)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:deepwiki.com)",
+      "WebFetch(domain:central.sonatype.com)",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\Imo\\\\AndroidStudioProjects\\\\bajeti6\" -Recurse -Depth 2)",
+      "Bash(Select-Object -Property FullName, PSIsContainer)",
+      "Bash(ConvertTo-Json)",
+      "PowerShell(Get-ChildItem -Path \"c:\\\\Users\\\\Imo\\\\AndroidStudioProjects\\\\bajeti6\\\\app\\\\src\\\\main\\\\java\" -Recurse | Where-Object { $_.PSIsContainer -eq $true } | Select-Object -Property FullName)",
+      "Bash(find \"C:/Users/Imo/.gradle\" -name \"clerk-android-api*.jar\" 2>/dev/null | head -5)",
+      "Read(//c/Users/Imo/.gradle/**)",
+      "Bash(jar tf *)"
+    ]
+  }
+}
