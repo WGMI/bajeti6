@@ -37,8 +37,11 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.bajeti.auth.AppAuthState
+import com.example.bajeti.auth.AuthScreenState
 import com.example.bajeti.auth.AuthViewModel
+import com.example.bajeti.ui.screens.EmailVerificationScreen
 import com.example.bajeti.ui.screens.LoginScreen
+import com.example.bajeti.ui.screens.SignUpScreen
 import com.example.bajeti.ui.screens.OnboardingScreen
 import com.example.bajeti.ui.screens.OverviewScreen
 import com.example.bajeti.ui.screens.SenderDetailScreen
@@ -77,7 +80,12 @@ fun AppNavigation(authViewModel: AuthViewModel = viewModel()) {
             }
         }
         AppAuthState.SignedOut -> {
-            LoginScreen(viewModel = authViewModel)
+            val authScreen by authViewModel.authScreen.collectAsStateWithLifecycle()
+            when (authScreen) {
+                AuthScreenState.Login -> LoginScreen(viewModel = authViewModel)
+                AuthScreenState.SignUp -> SignUpScreen(viewModel = authViewModel)
+                AuthScreenState.VerifyEmail -> EmailVerificationScreen(viewModel = authViewModel)
+            }
         }
         AppAuthState.SignedIn -> {
             val context = LocalContext.current
