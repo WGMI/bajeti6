@@ -150,13 +150,22 @@ private fun MainScreen() {
             modifier = Modifier.padding(innerPadding),
         ) {
             composable(BottomTab.Overview.route) {
-                OverviewScreen(onSeeAll = {
-                    navController.navigate(BottomTab.Transactions.route) {
-                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                        launchSingleTop = true
-                        restoreState = true
-                    }
-                })
+                OverviewScreen(
+                    onSeeAll = {
+                        navController.navigate(BottomTab.Transactions.route) {
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                    onNavigateToSettings = {
+                        navController.navigate(BottomTab.Settings.route) {
+                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                )
             }
             composable(BottomTab.SmsImport.route) {
                 SmsImportScreen(

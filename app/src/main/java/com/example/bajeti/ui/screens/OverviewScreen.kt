@@ -115,7 +115,7 @@ internal fun categoryEmoji(category: String?): String = when {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun OverviewScreen(onSeeAll: () -> Unit = {}, viewModel: OverviewViewModel = viewModel()) {
+fun OverviewScreen(onSeeAll: () -> Unit = {}, onNavigateToSettings: () -> Unit = {}, viewModel: OverviewViewModel = viewModel()) {
     val uiState by viewModel.uiState.collectAsState()
 
     var showAddDialog by remember { mutableStateOf(false) }
@@ -162,7 +162,7 @@ fun OverviewScreen(onSeeAll: () -> Unit = {}, viewModel: OverviewViewModel = vie
                 .fillMaxSize()
                 .background(AppBackground),
         ) {
-            stickyHeader { OverviewTopBar() }
+            stickyHeader { OverviewTopBar(onNavigateToSettings = onNavigateToSettings) }
 
             if (uiState.isLoading) {
                 item { LoadingState() }
@@ -240,7 +240,7 @@ private fun ErrorState(message: String, onRetry: () -> Unit) {
 }
 
 @Composable
-private fun OverviewTopBar() {
+private fun OverviewTopBar(onNavigateToSettings: () -> Unit = {}) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -253,10 +253,11 @@ private fun OverviewTopBar() {
         Box(
             modifier = Modifier
                 .size(36.dp)
-                .background(TealPrimary, CircleShape),
+                .background(TealPrimary, CircleShape)
+                .clickable(onClick = onNavigateToSettings),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(Icons.Filled.Person, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+            Icon(Icons.Filled.Person, contentDescription = "Settings", tint = Color.White, modifier = Modifier.size(20.dp))
         }
     }
 }
