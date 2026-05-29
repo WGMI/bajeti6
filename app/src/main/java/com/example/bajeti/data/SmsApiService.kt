@@ -30,7 +30,7 @@ interface SmsApiService {
     suspend fun createTransaction(
         @Header("Authorization") authorization: String,
         @Body request: CreateTransactionRequest,
-    ): Transaction
+    ): CreateTransactionResponse
 
     @PATCH("api/transactions/{id}")
     suspend fun updateTransaction(

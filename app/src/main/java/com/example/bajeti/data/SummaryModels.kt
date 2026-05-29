@@ -41,6 +41,13 @@ data class SettingsOptionsResponse(
     val theme: List<String>,
 )
 
+data class Account(
+    val id: String,
+    val name: String,
+    val isDefault: Boolean,
+    val balance: Double,
+)
+
 data class Transaction(
     val id: String,
     val amount: Double,
@@ -50,6 +57,12 @@ data class Transaction(
     val date: String,
     val notes: String?,
     val type: String,
+    val accountId: String?,
+    val accountName: String?,
+    val transferGroupId: String?,
+    val transferLeg: String?,
+    val counterAccountId: String?,
+    val counterAccountName: String?,
     val smsCounterparty: String?,
     val smsCounterpartyKey: String?,
 )

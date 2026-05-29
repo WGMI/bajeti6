@@ -1,6 +1,7 @@
 package com.example.bajeti.ui.screens
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -23,6 +24,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+private const val TAG = "BajetiSmsDebug"
+
 sealed interface PreviewState {
     object Idle : PreviewState
     data class Loading(val messageId: Long) : PreviewState
@@ -36,8 +39,10 @@ sealed interface PreviewState {
         val editedCategoryId: String?,
         val needsCategory: Boolean,
         val isSaving: Boolean = false,
+        val smsIdempotencyKey: String? = null,
     ) : PreviewState
     object Saved : PreviewState
+    data class Duplicate(val message: String) : PreviewState
     data class Error(val message: String) : PreviewState
 }
 
@@ -47,7 +52,6 @@ data class SenderDetailUiState(
     val isLoading: Boolean = true,
     val categories: List<SmsCategory> = emptyList(),
     val previewState: PreviewState = PreviewState.Idle,
-    val savedMessageIds: Set<Long> = emptySet(),
     val isImporting: Boolean = false,
     val importProgress: String? = null,
     val importResult: SmsImportResult? = null,
@@ -92,6 +96,7 @@ class SenderDetailViewModel(
     }
 
     fun previewMessage(message: DeviceSmsMessage) {
+        Log.d(TAG, "preview: smsId=${message.id} body=${message.body.take(60)}")
         _uiState.update { it.copy(previewState = PreviewState.Loading(message.id)) }
         viewModelScope.launch {
             try {
@@ -106,6 +111,7 @@ class SenderDetailViewModel(
                         timestamp = message.timestampMillis,
                     ),
                 )
+                Log.d(TAG, "preview response: status=${response.status} smsIdempotencyKey=${response.smsIdempotencyKey}")
                 when (response.status) {
                     "ignored" -> _uiState.update {
                         it.copy(previewState = PreviewState.Ignored(
@@ -123,6 +129,7 @@ class SenderDetailViewModel(
                                 editedNotes = preview.notes,
                                 editedCategoryId = preview.categoryId,
                                 needsCategory = response.status == "needs_category",
+                                smsIdempotencyKey = response.smsIdempotencyKey,
                             ))
                         }
                     }
@@ -160,6 +167,9 @@ class SenderDetailViewModel(
         val ready = _uiState.value.previewState as? PreviewState.Ready ?: return
         val amount = ready.editedAmount.toDoubleOrNull() ?: return
         val categoryId = ready.editedCategoryId ?: return
+        val idempotencyKey = ready.smsIdempotencyKey ?: "sms-${ready.messageId}"
+
+        Log.d(TAG, "save: smsId=${ready.messageId} key=$idempotencyKey keySource=${if (ready.smsIdempotencyKey != null) "server" else "fallback-local-id"}")
 
         _uiState.update { it.copy(previewState = ready.copy(isSaving = true)) }
         viewModelScope.launch {
@@ -168,7 +178,7 @@ class SenderDetailViewModel(
                     _uiState.update { it.copy(previewState = PreviewState.Error("Not signed in")) }
                     return@launch
                 }
-                ApiClient.smsApi.createTransaction(
+                val saved = ApiClient.smsApi.createTransaction(
                     authorization = "Bearer $token",
                     request = CreateTransactionRequest(
                         amount = amount,
@@ -176,17 +186,42 @@ class SenderDetailViewModel(
                         date = ready.editedDate,
                         notes = ready.editedNotes,
                         type = ready.preview.type,
-                        idempotencyKey = "sms-${ready.messageId}",
+                        idempotencyKey = idempotencyKey,
                     ),
                 )
-                _uiState.update { state ->
-                    state.copy(
-                        previewState = PreviewState.Saved,
-                        savedMessageIds = state.savedMessageIds + ready.messageId,
-                    )
+                Log.d(TAG, "save response: transactionId=${saved.id} status=${saved.status}")
+                prefs.addDismissedId(sender, ready.messageId)
+                val filteredMessages = { state: SenderDetailUiState ->
+                    state.messages.filter { it.id != ready.messageId }
+                }
+                if (saved.status == "duplicate") {
+                    val msg = saved.message ?: "Duplicate SMS ignored: this transaction is already saved."
+                    _uiState.update { state ->
+                        state.copy(
+                            previewState = PreviewState.Duplicate(msg),
+                            messages = filteredMessages(state),
+                        )
+                    }
+                } else {
+                    _uiState.update { state ->
+                        state.copy(
+                            previewState = PreviewState.Saved,
+                            messages = filteredMessages(state),
+                        )
+                    }
                 }
             } catch (e: Exception) {
+                Log.e(TAG, "save failed: ${e.message}")
                 _uiState.update { it.copy(previewState = PreviewState.Error(e.message ?: "Save failed")) }
+            }
+        }
+    }
+
+    fun ignoreMessage(message: DeviceSmsMessage) {
+        viewModelScope.launch {
+            prefs.addDismissedId(sender, message.id)
+            _uiState.update { state ->
+                state.copy(messages = state.messages.filter { it.id != message.id })
             }
         }
     }
@@ -202,6 +237,8 @@ class SenderDetailViewModel(
             val result = repo.importSender(sender, token) { done, total ->
                 _uiState.update { it.copy(importProgress = "Batch $done / $total") }
             }
+            val newCursor = prefs.getCursor(sender)
+            prefs.pruneDismissedIds(sender, newCursor)
             val refreshed = repo.loadNewMessages(sender)
             _uiState.update {
                 it.copy(

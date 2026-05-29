@@ -56,6 +56,33 @@ class SmsPreferences(private val dataStore: DataStore<Preferences>) {
             prefs.remove(longPreferencesKey("start_date_${normalizeSender(sender)}"))
         }
     }
+
+    private fun dismissedKey(sender: String) =
+        stringSetPreferencesKey("dismissed_${normalizeSender(sender)}")
+
+    suspend fun getDismissedIds(sender: String): Set<Long> =
+        dataStore.data.first()[dismissedKey(sender)]
+            ?.mapNotNull { it.toLongOrNull() }
+            ?.toSet()
+            ?: emptySet()
+
+    suspend fun addDismissedId(sender: String, id: Long) {
+        dataStore.edit { prefs ->
+            val key = dismissedKey(sender)
+            prefs[key] = (prefs[key] ?: emptySet()) + id.toString()
+        }
+    }
+
+    suspend fun pruneDismissedIds(sender: String, upToCursor: Long) {
+        dataStore.edit { prefs ->
+            val key = dismissedKey(sender)
+            val current = prefs[key] ?: return@edit
+            val pruned = current.filterTo(mutableSetOf()) {
+                it.toLongOrNull()?.let { id -> id > upToCursor } == true
+            }
+            if (pruned.isEmpty()) prefs.remove(key) else prefs[key] = pruned
+        }
+    }
 }
 
 internal fun normalizeSender(sender: String): String {

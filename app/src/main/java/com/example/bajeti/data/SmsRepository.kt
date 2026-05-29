@@ -35,7 +35,9 @@ class SmsRepository(
     suspend fun loadNewMessages(sender: String): List<DeviceSmsMessage> {
         val afterId = prefs.getCursor(sender)
         val startAt = prefs.getStartDate(sender)
-        return loadMessages(sender, afterId, startAt)
+        val dismissed = prefs.getDismissedIds(sender)
+        val messages = loadMessages(sender, afterId, startAt)
+        return if (dismissed.isEmpty()) messages else messages.filter { it.id !in dismissed }
     }
 
     fun loadSenders(): List<String> {
@@ -65,11 +67,12 @@ class SmsRepository(
     private fun loadMessages(sender: String, afterId: Long, startAtMillis: Long): List<DeviceSmsMessage> {
         val projection = arrayOf(Telephony.Sms._ID, Telephony.Sms.BODY, Telephony.Sms.DATE)
 
-        // Both filters applied together — cursor narrows range, start date adds date floor
         val selectionParts = mutableListOf("${Telephony.Sms.ADDRESS} = ?")
         val selectionArgs = mutableListOf(sender)
 
-        if (afterId > -1L) {
+        // When a start date is set, show all messages from that date regardless of the cursor
+        // so previously-imported messages reappear in the list. Cursor only applies without a date floor.
+        if (afterId > -1L && startAtMillis <= -1L) {
             selectionParts.add("${Telephony.Sms._ID} > ?")
             selectionArgs.add(afterId.toString())
         }

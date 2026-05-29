@@ -3,6 +3,7 @@ package com.example.bajeti.widget
 import android.appwidget.AppWidgetManager
 import android.content.Context
 import android.content.Intent
+import com.example.bajeti.MainActivity
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -105,7 +106,8 @@ class BajetiGlanceWidget : GlanceAppWidget() {
         provideContent {
             val prefs = currentState<Preferences>()
             val isLoading = prefs[IS_LOADING_KEY] ?: true
-            val error = prefs[ERROR_KEY]
+            // "auth" | "network" | null
+            val errorType = prefs[ERROR_KEY]
             val balance = prefs[BALANCE_KEY]?.toDouble() ?: 0.0
             val income = prefs[INCOME_KEY]?.toDouble() ?: 0.0
             val expenses = prefs[EXPENSES_KEY]?.toDouble() ?: 0.0
@@ -119,7 +121,7 @@ class BajetiGlanceWidget : GlanceAppWidget() {
 
             WidgetRoot(
                 isLoading = isLoading,
-                error = error,
+                errorType = errorType,
                 balance = balance,
                 income = income,
                 expenses = expenses,
@@ -210,7 +212,7 @@ private fun wTextSizes(size: String) = when (size) {
 @Composable
 private fun WidgetRoot(
     isLoading: Boolean,
-    error: String?,
+    errorType: String?,
     balance: Double,
     income: Double,
     expenses: Double,
@@ -224,18 +226,26 @@ private fun WidgetRoot(
 ) {
     val ts = wTextSizes(textSize)
     val isCompact = LocalSize.current.height < 140.dp
+    val context = LocalContext.current
+    val openApp = actionStartActivity(
+        Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        },
+    )
     Column(
         modifier = GlanceModifier
             .fillMaxSize()
             .background(cp(C_Surface))
-            .cornerRadius(16.dp),
+            .cornerRadius(16.dp)
+            .clickable(openApp),
     ) {
         WidgetHeader(ts)
         when {
+            errorType == "auth" -> UnauthenticatedContent(ts)
             isLoading -> LoadingContent()
             else -> {
                 if (showBalance) {
-                    BalanceSection(balance, income, expenses, currency, error, showBreakdown, ts)
+                    BalanceSection(balance, income, expenses, currency, errorType, showBreakdown, ts)
                 }
                 if (showSms && !isCompact) {
                     SmsSection(smsCounts, importingSenders, ts)
@@ -320,6 +330,30 @@ private fun EmptySettingsHint() {
     }
 }
 
+@Composable
+private fun UnauthenticatedContent(ts: WTextSizes) {
+    Box(
+        modifier = GlanceModifier.fillMaxSize().padding(16.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(horizontalAlignment = Alignment.Horizontal.CenterHorizontally) {
+            Text(
+                "Not signed in",
+                style = TextStyle(
+                    color = cp(C_Red),
+                    fontSize = ts.label.sp,
+                    fontWeight = FontWeight.Bold,
+                ),
+            )
+            Spacer(GlanceModifier.height(4.dp))
+            Text(
+                "Tap to open the app and sign in",
+                style = TextStyle(color = cp(C_TextSec), fontSize = ts.status.sp),
+            )
+        }
+    }
+}
+
 // ── Balance section ───────────────────────────────────────────────────────────
 
 @Composable
@@ -328,7 +362,7 @@ private fun BalanceSection(
     income: Double,
     expenses: Double,
     currency: String,
-    error: String?,
+    errorType: String?,
     showBreakdown: Boolean,
     ts: WTextSizes,
 ) {
@@ -340,22 +374,53 @@ private fun BalanceSection(
         Text("This Month", style = TextStyle(color = cp(C_TextSec), fontSize = ts.label.sp))
         Spacer(GlanceModifier.height(2.dp))
         Text(
-            if (error != null) "—" else fmtCurrency(balance, currency),
+            if (errorType != null) "—" else fmtCurrency(balance, currency),
             style = TextStyle(
                 color = cp(C_TextPri),
                 fontSize = ts.balance.sp,
                 fontWeight = FontWeight.Bold,
             ),
         )
-        if (error != null) {
-            Spacer(GlanceModifier.height(2.dp))
-            Text(error, style = TextStyle(color = cp(C_TextSec), fontSize = ts.label.sp))
-        } else if (showBreakdown) {
-            Spacer(GlanceModifier.height(6.dp))
-            Row {
-                AmountChip("+${fmtCurrency(income, currency)}", C_Green, C_GreenBg, ts)
-                Spacer(GlanceModifier.width(6.dp))
-                AmountChip("-${fmtCurrency(expenses, currency)}", C_Red, C_RedBg, ts)
+        when (errorType) {
+            "auth" -> {
+                Spacer(GlanceModifier.height(4.dp))
+                Text(
+                    "Not signed in",
+                    style = TextStyle(
+                        color = cp(C_Red),
+                        fontSize = ts.label.sp,
+                        fontWeight = FontWeight.Medium,
+                    ),
+                )
+                Spacer(GlanceModifier.height(2.dp))
+                Text(
+                    "Open the app to sign in",
+                    style = TextStyle(color = cp(C_TextSec), fontSize = ts.status.sp),
+                )
+            }
+            "network" -> {
+                Spacer(GlanceModifier.height(4.dp))
+                Text(
+                    "Couldn't load data",
+                    style = TextStyle(
+                        color = cp(C_TextSec),
+                        fontSize = ts.label.sp,
+                        fontWeight = FontWeight.Medium,
+                    ),
+                )
+                Spacer(GlanceModifier.height(2.dp))
+                Text(
+                    "Tap ↺ to retry",
+                    style = TextStyle(color = cp(C_TextSec), fontSize = ts.status.sp),
+                )
+            }
+            null -> if (showBreakdown) {
+                Spacer(GlanceModifier.height(6.dp))
+                Row {
+                    AmountChip("+${fmtCurrency(income, currency)}", C_Green, C_GreenBg, ts)
+                    Spacer(GlanceModifier.width(6.dp))
+                    AmountChip("-${fmtCurrency(expenses, currency)}", C_Red, C_RedBg, ts)
+                }
             }
         }
     }

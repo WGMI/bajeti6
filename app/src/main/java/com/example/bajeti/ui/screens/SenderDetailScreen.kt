@@ -2,6 +2,7 @@ package com.example.bajeti.ui.screens
 
 import android.app.Application
 import android.app.DatePickerDialog
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -120,7 +121,7 @@ fun SenderDetailScreen(
         )
     }
 
-    // Auto-dismiss after a successful save
+    // Auto-dismiss after a successful save (duplicate shows its own dialog instead)
     LaunchedEffect(uiState.previewState) {
         if (uiState.previewState is PreviewState.Saved) {
             viewModel.dismissPreview()
@@ -140,6 +141,10 @@ fun SenderDetailScreen(
             onNotesChange = viewModel::updateNotes,
             onCategoryChange = viewModel::updateCategory,
             onSave = viewModel::saveTransaction,
+            onDismiss = viewModel::dismissPreview,
+        )
+        is PreviewState.Duplicate -> DuplicateDialog(
+            message = state.message,
             onDismiss = viewModel::dismissPreview,
         )
         is PreviewState.Error -> ErrorDialog(
@@ -172,7 +177,7 @@ fun SenderDetailScreen(
             Column(modifier = Modifier.weight(1f)) {
                 Text(sender, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                 if (!uiState.isLoading) {
-                    val count = uiState.messages.size - uiState.savedMessageIds.size
+                    val count = uiState.messages.size
                     Text(
                         if (count > 0) "$count new message${if (count != 1) "s" else ""}" else "All caught up",
                         fontSize = 12.sp,
@@ -257,10 +262,10 @@ fun SenderDetailScreen(
                 items(uiState.messages, key = { it.id }) { message ->
                     MessageCard(
                         message = message,
-                        isSaved = message.id in uiState.savedMessageIds,
                         isLoadingPreview = uiState.previewState is PreviewState.Loading &&
                                 (uiState.previewState as PreviewState.Loading).messageId == message.id,
                         onPreview = { viewModel.previewMessage(message) },
+                        onIgnore = { viewModel.ignoreMessage(message) },
                     )
                 }
             }
@@ -271,9 +276,9 @@ fun SenderDetailScreen(
 @Composable
 private fun MessageCard(
     message: DeviceSmsMessage,
-    isSaved: Boolean,
     isLoadingPreview: Boolean,
     onPreview: () -> Unit,
+    onIgnore: () -> Unit,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -297,13 +302,8 @@ private fun MessageCard(
                 overflow = TextOverflow.Ellipsis,
             )
             Spacer(Modifier.height(10.dp))
-            when {
-                isSaved -> Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.CheckCircle, contentDescription = null, tint = IncomeGreen, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("Saved", fontSize = 13.sp, color = IncomeGreen, fontWeight = FontWeight.Medium)
-                }
-                isLoadingPreview -> Row(
+            if (isLoadingPreview) {
+                Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.Center,
                     modifier = Modifier.fillMaxWidth(),
@@ -312,14 +312,27 @@ private fun MessageCard(
                     Spacer(Modifier.width(8.dp))
                     Text("Previewing…", fontSize = 13.sp, color = TextSecondary)
                 }
-                else -> Button(
-                    onClick = onPreview,
-                    modifier = Modifier.fillMaxWidth().height(40.dp),
-                    shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = TealPrimary),
-                    contentPadding = PaddingValues(0.dp),
-                ) {
-                    Text("Preview", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = onPreview,
+                        modifier = Modifier.weight(1f).height(40.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = TealPrimary),
+                        contentPadding = PaddingValues(0.dp),
+                    ) {
+                        Text("Preview", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                    OutlinedButton(
+                        onClick = onIgnore,
+                        modifier = Modifier.weight(1f).height(40.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        border = BorderStroke(1.dp, DividerColor),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = TextSecondary),
+                        contentPadding = PaddingValues(0.dp),
+                    ) {
+                        Text("Ignore", fontSize = 13.sp)
+                    }
                 }
             }
         }
@@ -344,6 +357,19 @@ private fun ErrorDialog(message: String, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Error", fontWeight = FontWeight.SemiBold) },
+        text = { Text(message, fontSize = 14.sp, color = TextPrimary) },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("OK", color = TealPrimary) }
+        },
+        containerColor = SurfaceWhite,
+    )
+}
+
+@Composable
+private fun DuplicateDialog(message: String, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Already saved", fontWeight = FontWeight.SemiBold) },
         text = { Text(message, fontSize = 14.sp, color = TextPrimary) },
         confirmButton = {
             TextButton(onClick = onDismiss) { Text("OK", color = TealPrimary) }

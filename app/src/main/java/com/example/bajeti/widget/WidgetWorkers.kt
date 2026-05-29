@@ -49,23 +49,21 @@ internal suspend fun refreshWidgetData(context: Context) {
     var balance = 0.0
     var income = 0.0
     var expenses = 0.0
-    var apiError: String? = null
+    // "auth" | "network" | null — stored in ERROR_KEY; widget interprets it for display
+    var apiErrorType: String? = null
 
     if (token != null) {
         try {
             val month = SimpleDateFormat("yyyy-MM", Locale.US).format(Date())
-            Log.d(TAG, "refresh: fetching summary for month=$month")
             val summary = ApiClient.summaryApi.getSummary("Bearer $token", month)
             balance = summary.currentMonth.balance
             income = summary.currentMonth.income
             expenses = summary.currentMonth.expenses
-            Log.d(TAG, "refresh: balance=$balance income=$income expenses=$expenses")
         } catch (e: Exception) {
-            apiError = e.message ?: "Failed to load balance"
-            Log.w(TAG, "refresh: API error → $apiError")
+            apiErrorType = "network"
         }
     } else {
-        apiError = "Sign in to see balance"
+        apiErrorType = "auth"
     }
 
     val smsPrefs = SmsPreferences(context.smsDataStore)
@@ -94,8 +92,8 @@ internal suspend fun refreshWidgetData(context: Context) {
                 this[BajetiGlanceWidget.SHOW_BREAKDOWN_KEY] = showBreakdown
                 this[BajetiGlanceWidget.SHOW_SMS_KEY] = showSms
                 this[BajetiGlanceWidget.TEXT_SIZE_KEY] = textSize
-                if (apiError != null) {
-                    this[BajetiGlanceWidget.ERROR_KEY] = apiError
+                if (apiErrorType != null) {
+                    this[BajetiGlanceWidget.ERROR_KEY] = apiErrorType
                 } else {
                     this.remove(BajetiGlanceWidget.ERROR_KEY)
                 }
